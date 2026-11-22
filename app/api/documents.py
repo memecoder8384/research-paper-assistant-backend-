@@ -20,6 +20,7 @@ from app.services.text_chunker import chunk_document_pages
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["Documents"])
+papers_router = APIRouter(prefix="/papers", tags=["Documents"])
 
 
 def sanitize_filename(filename: str) -> str:
@@ -35,6 +36,11 @@ def sanitize_filename(filename: str) -> str:
     "/upload",
     status_code=status.HTTP_201_CREATED,
     summary="Upload, process, and index a research paper PDF",
+)
+@papers_router.post(
+    "/upload",
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload, process, and index a research paper PDF (alias)",
 )
 async def upload_document(file: UploadFile = File(...)):
     """Upload a PDF, extract its text, clean it, chunk it, and index it in ChromaDB."""
@@ -184,6 +190,7 @@ async def upload_document(file: UploadFile = File(...)):
 
 
 @router.get("", summary="List all uploaded documents")
+@papers_router.get("", summary="List all uploaded documents (alias)")
 async def list_documents():
     """Retrieve metadata for all uploaded documents from persistent storage."""
     docs = db_list_documents()
@@ -211,6 +218,7 @@ async def list_documents():
 
 
 @router.delete("/{document_id}", summary="Delete an uploaded document")
+@papers_router.delete("/{document_id}", summary="Delete an uploaded document (alias)")
 async def delete_document(document_id: str):
     """Delete a document by its ID, removing its file, chunks, SQLite metadata, and ChromaDB records."""
     doc = db_get_document(document_id)

@@ -45,3 +45,43 @@ async def summarize_document(payload: SummaryRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during summarization. Please try again.",
         )
+
+
+@router.get(
+    "/papers/{document_id}/summary",
+    response_model=SummaryResponse,
+    summary="Get paper summary by document ID",
+)
+@router.get(
+    "/summarize/{document_id}",
+    response_model=SummaryResponse,
+    summary="Get paper summary by document ID (alias)",
+)
+async def get_summary_by_id(document_id: str, summary_type: str = "detailed"):
+    """Retrieve or generate structured summary for a document ID via GET."""
+    try:
+        result = generate_paper_summary(
+            document_id=document_id,
+            summary_type=summary_type,
+        )
+        return SummaryResponse(**result)
+    except KeyError as key_err:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(key_err),
+        )
+    except ValueError as val_err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(val_err),
+        )
+    except RuntimeError as run_err:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(run_err),
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during summarization. Please try again.",
+        )

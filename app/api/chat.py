@@ -19,11 +19,19 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 )
 async def chat_new_question(payload: ChatRequest):
     """Answer a research question using RAG over indexed papers."""
+    question = (payload.question or payload.message or "").strip()
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question must not be empty.",
+        )
+    document_ids = payload.document_ids or payload.selectedPaperIds
+
     try:
         result = answer_research_question(
-            question=payload.question,
+            question=question,
             conversation_id=None,
-            document_ids=payload.document_ids,
+            document_ids=document_ids,
             top_k=payload.top_k,
         )
     except ValueError as val_err:
@@ -54,6 +62,19 @@ async def chat_new_question(payload: ChatRequest):
         for s in result["sources"]
     ]
 
+    citations_data = [
+        {
+            "id": f"cite-{s['chunk_id']}",
+            "paperId": s["document_id"],
+            "paperTitle": s["filename"],
+            "authorsYear": s["filename"],
+            "page": f"p. {s['page_number'] or s['start_page']}",
+            "quote": f"Passage from {s['filename']} (p. {s['page_number'] or s['start_page']})",
+        }
+        for s in result["sources"]
+    ]
+    grounded_papers = list({s["document_id"] for s in result["sources"]})
+
     return ChatResponse(
         question=result["question"],
         answer=result["answer"],
@@ -61,6 +82,11 @@ async def chat_new_question(payload: ChatRequest):
         retrieved_chunks=result["retrieved_chunks"],
         conversation_id=result["conversation_id"],
         status=result["status"],
+        id=f"msg-{result['conversation_id']}",
+        sender="assistant",
+        content=result["answer"],
+        citations=citations_data,
+        groundedPapers=grounded_papers,
     )
 
 
@@ -77,11 +103,19 @@ async def chat_continue_conversation(conversation_id: str, payload: ChatRequest)
             detail="Conversation ID cannot be empty.",
         )
 
+    question = (payload.question or payload.message or "").strip()
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question must not be empty.",
+        )
+    document_ids = payload.document_ids or payload.selectedPaperIds
+
     try:
         result = answer_research_question(
-            question=payload.question,
+            question=question,
             conversation_id=conversation_id.strip(),
-            document_ids=payload.document_ids,
+            document_ids=document_ids,
             top_k=payload.top_k,
         )
     except ValueError as val_err:
@@ -112,6 +146,19 @@ async def chat_continue_conversation(conversation_id: str, payload: ChatRequest)
         for s in result["sources"]
     ]
 
+    citations_data = [
+        {
+            "id": f"cite-{s['chunk_id']}",
+            "paperId": s["document_id"],
+            "paperTitle": s["filename"],
+            "authorsYear": s["filename"],
+            "page": f"p. {s['page_number'] or s['start_page']}",
+            "quote": f"Passage from {s['filename']} (p. {s['page_number'] or s['start_page']})",
+        }
+        for s in result["sources"]
+    ]
+    grounded_papers = list({s["document_id"] for s in result["sources"]})
+
     return ChatResponse(
         question=result["question"],
         answer=result["answer"],
@@ -119,6 +166,11 @@ async def chat_continue_conversation(conversation_id: str, payload: ChatRequest)
         retrieved_chunks=result["retrieved_chunks"],
         conversation_id=result["conversation_id"],
         status=result["status"],
+        id=f"msg-{result['conversation_id']}",
+        sender="assistant",
+        content=result["answer"],
+        citations=citations_data,
+        groundedPapers=grounded_papers,
     )
 
 

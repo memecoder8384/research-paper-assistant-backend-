@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 import uvicorn
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.api.chat import router as chat_router
-from app.api.documents import router as documents_router
+from app.api.documents import papers_router, router as documents_router
 from app.api.health import router as health_router
 from app.api.retrieval import router as retrieval_router
 from app.api.routes.comparison import router as comparison_router
@@ -33,17 +34,39 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Enable CORS for frontend connectivity (allows React, Vite, Next.js, Streamlit, etc.)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Register custom exception handlers for clean error responses
 register_error_handlers(app)
 
-# Register API routers
+# Register API routers at root level
 app.include_router(health_router)
 app.include_router(documents_router)
+app.include_router(papers_router)
 app.include_router(retrieval_router)
 app.include_router(chat_router)
 app.include_router(summary_router)
 app.include_router(comparison_router)
 app.include_router(gap_router)
+
+# Also mount under /api prefix for frontend frameworks configuring VITE_API_BASE_URL=.../api
+api_router = APIRouter(prefix="/api")
+api_router.include_router(health_router)
+api_router.include_router(documents_router)
+api_router.include_router(papers_router)
+api_router.include_router(retrieval_router)
+api_router.include_router(chat_router)
+api_router.include_router(summary_router)
+api_router.include_router(comparison_router)
+api_router.include_router(gap_router)
+app.include_router(api_router)
 
 
 @app.get("/", tags=["Root"], summary="API Root")
