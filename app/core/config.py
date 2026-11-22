@@ -25,12 +25,29 @@ class Settings(BaseSettings):
     embedding_model_name: str = "all-MiniLM-L6-v2"
     default_top_k: int = 5
 
-    # Groq LLM Settings
-    groq_api_key: Optional[str] = None
-    groq_model: str = "llama-3.3-70b-versatile"
+    # Gemini LLM Settings
+    gemini_api_key: Optional[str] = None
+    google_api_key: Optional[str] = None
+    gemini_model: str = "gemini-2.5-flash"
     llm_temperature: float = 0.2
     llm_max_tokens: int = 1024
     max_context_length_chars: int = 12000
+
+    @property
+    def groq_api_key(self) -> Optional[str]:
+        return self.gemini_api_key or self.google_api_key
+
+    @groq_api_key.setter
+    def groq_api_key(self, val: Optional[str]):
+        self.gemini_api_key = val
+
+    @property
+    def groq_model(self) -> str:
+        return self.gemini_model
+
+    @groq_model.setter
+    def groq_model(self, val: str):
+        self.gemini_model = val
 
     @property
     def uploads_dir(self) -> Path:

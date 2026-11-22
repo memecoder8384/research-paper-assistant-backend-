@@ -1,7 +1,6 @@
 import io
 from unittest.mock import MagicMock
 import pytest
-from groq import APITimeoutError, RateLimitError
 from app.core.config import settings
 from app.retrieval.embeddings import EmbeddingService
 from app.retrieval.vector_store import add_document_chunks, clear_collection
@@ -13,36 +12,44 @@ from app.services.session_store import SessionStore
 from tests.conftest import make_pdf_bytes
 
 
-class MockGroqChatCompletions:
+class MockGeminiModels:
     def __init__(self, response_text: str = "The transformer model relies on self-attention [attention.pdf, p. 1]."):
         self.response_text = response_text
         self.last_call_kwargs = None
         self.raise_exc = None
 
-    def create(self, **kwargs):
-        self.last_call_kwargs = kwargs
+    def generate_content(self, model, contents, config=None):
+        temp = getattr(config, "temperature", None) if config else None
+        tokens = getattr(config, "max_output_tokens", None) if config else None
+        self.last_call_kwargs = {
+            "model": model,
+            "contents": contents,
+            "config": config,
+            "temperature": temp,
+            "max_tokens": tokens,
+        }
         if self.raise_exc:
             raise self.raise_exc
-        mock_msg = MagicMock()
-        mock_msg.content = self.response_text
-        mock_choice = MagicMock()
-        mock_choice.message = mock_msg
         mock_resp = MagicMock()
-        mock_resp.choices = [mock_choice]
+        mock_resp.text = self.response_text
         return mock_resp
 
 
-class MockGroqClient:
+class MockGeminiClient:
     def __init__(self, response_text: str = "The transformer model relies on self-attention [attention.pdf, p. 1]."):
-        self.chat = MagicMock()
-        self.completions = MockGroqChatCompletions(response_text)
-        self.chat.completions = self.completions
+        self.models = MockGeminiModels(response_text)
+        self.completions = self.models  # For compatibility with legacy test assertions
+
+
+# Backwards compatibility alias
+MockGroqClient = MockGeminiClient
+MockGroqChatCompletions = MockGeminiModels
 
 
 @pytest.fixture(autouse=True)
 def setup_mock_groq():
-    """Inject mock Groq client and clear session store before each test."""
-    mock_client = MockGroqClient()
+    """Inject mock Gemini client and clear session store before each test."""
+    mock_client = MockGeminiClient()
     LLMService.set_client(mock_client)
     SessionStore.reset_all()
     yield mock_client
@@ -50,11 +57,11 @@ def setup_mock_groq():
     SessionStore.reset_all()
 
 
-# 1. Groq client configuration test
+# 1. Gemini client configuration test
 def test_groq_client_configuration(setup_mock_groq):
     messages = [{"role": "user", "content": "Hello"}]
     LLMService.generate_chat_completion(messages, model="custom-model", temperature=0.5, max_tokens=256)
-    call_kwargs = setup_mock_groq.completions.last_call_kwargs
+    call_kwargs = setup_mock_groq.models.last_call_kwargs
     assert call_kwargs["model"] == "custom-model"
     assert call_kwargs["temperature"] == 0.5
     assert call_kwargs["max_tokens"] == 256
@@ -63,8 +70,9 @@ def test_groq_client_configuration(setup_mock_groq):
 # 2. Missing API key test
 def test_missing_api_key(monkeypatch):
     LLMService.reset_client()
-    monkeypatch.setattr(settings, "groq_api_key", "")
-    with pytest.raises(ValueError, match="GROQ_API_KEY is not configured"):
+    monkeypatch.setattr(settings, "gemini_api_key", "")
+    monkeypatch.setattr(settings, "google_api_key", "")
+    with pytest.raises(ValueError, match="GEMINI_API_KEY is not configured"):
         LLMService.get_client()
 
 
@@ -248,15 +256,14 @@ def test_chat_api_endpoints(client, temp_storage):
     assert hist_after["total_messages"] == 0
 
 
-# 13. Mocked Groq API failure test
+# 13. Mocked Gemini API failure test
 def test_mocked_groq_api_failures(setup_mock_groq, temp_storage, client):
     # Upload doc so retrieval succeeds and calls LLM
     pdf_bytes = make_pdf_bytes(["Test failure scenario."])
     client.post("/documents/upload", files={"file": ("doc.pdf", io.BytesIO(pdf_bytes), "application/pdf")})
 
-    # Inject timeout exception into mock Groq
-    mock_request = MagicMock()
-    setup_mock_groq.completions.raise_exc = APITimeoutError(request=mock_request)
+    # Inject timeout exception into mock Gemini
+    setup_mock_groq.models.raise_exc = TimeoutError("Gemini API request timed out")
 
     res = client.post("/chat", json={"question": "What happens on timeout?"})
     assert res.status_code == 503
@@ -269,16 +276,11 @@ def test_rate_limit_handling(setup_mock_groq, temp_storage, client):
     pdf_bytes = make_pdf_bytes(["Test rate limit scenario."])
     client.post("/documents/upload", files={"file": ("doc.pdf", io.BytesIO(pdf_bytes), "application/pdf")})
 
-    # Inject RateLimitError into mock Groq
-    mock_response = MagicMock()
-    mock_response.status_code = 429
-    mock_response.headers = {}
-    mock_body = {"error": {"message": "Rate limit reached"}}
-    setup_mock_groq.completions.raise_exc = RateLimitError(
-        message="Rate limit reached",
-        response=mock_response,
-        body=mock_body,
-    )
+    # Inject RateLimit into mock Gemini
+    class MockRateLimit(Exception):
+        pass
+
+    setup_mock_groq.models.raise_exc = MockRateLimit("Gemini API rate limit exceeded (429)")
 
     res = client.post("/chat", json={"question": "Are we rate limited?"})
     assert res.status_code == 503

@@ -40,7 +40,7 @@ class ResearchOrchestrator:
         temperature: float = 0.2,
         max_tokens: int = 1800,
     ) -> Dict[str, Any]:
-        """Execute Groq chat completion and return parsed JSON response."""
+        """Execute Gemini chat completion and return parsed JSON response."""
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},

@@ -25,7 +25,7 @@ def answer_research_question(
     4. Handle empty retrieval cleanly (return grounded fallback without LLM call)
     5. Construct structured academic context
     6. Attach conversation history
-    7. Generate grounded answer via Groq LLM
+    7. Generate grounded answer via Gemini LLM
     8. Record turn in session history and return structured response
     """
     clean_question = question.strip() if question else ""
@@ -81,7 +81,7 @@ def answer_research_question(
     )
     messages.append({"role": "user", "content": user_prompt})
 
-    # Step 6: Call Groq LLM
+    # Step 6: Call Gemini LLM
     answer = LLMService.generate_chat_completion(messages)
 
     # Step 7: Update conversation history
