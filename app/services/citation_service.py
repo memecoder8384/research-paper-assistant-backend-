@@ -19,6 +19,14 @@ def extract_citations(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         end_page = int(c.get("end_page", page_num))
         chunk_id = str(c.get("chunk_id") or "")
 
+        raw_text = (c.get("text") or "").strip()
+        if len(raw_text) > 120:
+            snippet = raw_text[:120].rsplit(" ", 1)[0] + "..."
+        elif raw_text:
+            snippet = raw_text
+        else:
+            snippet = f"Relevant passage excerpt from page {page_num}."
+
         # Unique key to avoid duplicate citations for identical document & page ranges
         key = (doc_id, page_num, start_page, end_page)
         if key not in seen_keys:
@@ -31,6 +39,7 @@ def extract_citations(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                     "start_page": start_page,
                     "end_page": end_page,
                     "chunk_id": chunk_id,
+                    "snippet": snippet,
                 }
             )
 

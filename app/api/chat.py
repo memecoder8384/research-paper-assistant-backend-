@@ -69,7 +69,7 @@ async def chat_new_question(payload: ChatRequest):
             "paperTitle": s["filename"],
             "authorsYear": s["filename"],
             "page": f"p. {s['page_number'] or s['start_page']}",
-            "quote": f"Passage from {s['filename']} (p. {s['page_number'] or s['start_page']})",
+            "quote": s.get("snippet") or f"Passage from page {s['page_number'] or s['start_page']}",
         }
         for s in result["sources"]
     ]
@@ -153,7 +153,7 @@ async def chat_continue_conversation(conversation_id: str, payload: ChatRequest)
             "paperTitle": s["filename"],
             "authorsYear": s["filename"],
             "page": f"p. {s['page_number'] or s['start_page']}",
-            "quote": f"Passage from {s['filename']} (p. {s['page_number'] or s['start_page']})",
+            "quote": s.get("snippet") or f"Passage from page {s['page_number'] or s['start_page']}",
         }
         for s in result["sources"]
     ]
