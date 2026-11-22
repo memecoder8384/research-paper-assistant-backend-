@@ -14,6 +14,10 @@ def extract_json_from_llm(text: str) -> Dict[str, Any]:
     match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, re.IGNORECASE)
     if match:
         cleaned = match.group(1).strip()
+    else:
+        # Strip leading ```json or ``` if response didn't close fence
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
 
     try:
         return json.loads(cleaned)

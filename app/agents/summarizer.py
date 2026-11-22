@@ -48,14 +48,14 @@ class SummarizerAgent:
         if not chunks:
             raise ValueError("No text chunks available to summarize.")
 
-        # Determine if hierarchical processing is needed (e.g. > 10 chunks or > 8000 characters)
+        # Determine if hierarchical processing is needed (> 90 chunks or > 35000 characters)
         total_chars = sum(len(c.get("text", "")) for c in chunks)
-        if len(chunks) > 10 or total_chars > 8000:
+        if len(chunks) > 90 or total_chars > 35000:
             logger.info("Using map-reduce hierarchical summarization for long paper: %s", filename)
             return cls._map_reduce_summarize(filename, chunks, summary_type)
 
-        # Single-pass direct summarization
-        context = build_rag_context(chunks, max_length=14000)
+        # Single-pass direct summarization (efficient, holistic, and within Gemini's 1M context)
+        context = build_rag_context(chunks, max_length=35000)
         user_prompt = (
             f"Paper Filename: {filename}\n"
             f"Requested Summary Format: {summary_type}\n\n"
@@ -67,7 +67,7 @@ class SummarizerAgent:
             system_prompt=SUMMARIZER_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             temperature=0.2,
-            max_tokens=2000,
+            max_tokens=2500,
         )
 
     @classmethod
@@ -78,24 +78,24 @@ class SummarizerAgent:
         summary_type: str,
     ) -> Dict[str, Any]:
         """Hierarchical map-reduce: summarize chunk batches, then synthesize final summary."""
-        # 1. Map step: partition chunks into batches of 6
-        batch_size = 6
+        # Partition chunks into batches of 15
+        batch_size = 15
         intermediate_summaries: List[str] = []
 
         for i in range(0, len(chunks), batch_size):
             batch = chunks[i : i + batch_size]
-            batch_context = build_rag_context(batch, max_length=7000)
+            batch_context = build_rag_context(batch, max_length=12000)
             map_prompt = (
                 f"Paper: {filename} (Section {i // batch_size + 1})\n"
                 f"Content:\n{batch_context}\n\n"
                 f"Summarize the key objectives, methodology, data, results, and limitations in this section."
             )
-            # Fast intermediate extraction
+            # Fast intermediate extraction with sufficient token budget
             map_res = ResearchOrchestrator.call_structured_llm(
                 system_prompt="You are a research paper extractor. Extract key facts concisely in JSON with key 'section_summary'.",
                 user_prompt=map_prompt,
                 temperature=0.1,
-                max_tokens=600,
+                max_tokens=1500,
             )
             intermediate_summaries.append(map_res.get("section_summary", str(map_res)))
 
@@ -115,5 +115,5 @@ class SummarizerAgent:
             system_prompt=SUMMARIZER_SYSTEM_PROMPT,
             user_prompt=reduce_prompt,
             temperature=0.2,
-            max_tokens=2000,
+            max_tokens=2500,
         )
